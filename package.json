@@ -1,0 +1,30 @@
+{
+  "name": "warthunder-squadron-bot",
+  "version": "1.0.0",
+  "description": "Discord bot that tracks War Thunder squadron battle results and sends notifications",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "node --inspect bot.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "war-thunder",
+    "squadron",
+    "tracker"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5",
+    "puppeteer": "^23.11.1"
+  },
+  "overrides": {
+    "undici": "^5.28.4"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
