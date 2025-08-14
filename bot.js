@@ -407,31 +407,33 @@ class WarThunderSquadronBot {
     }
 
     async compareAndNotify(previousStats, currentStats) {
-        // Check if battles count changed (indicating a new battle completed)
-        const battlesChanged = currentStats.totalBattles > previousStats.totalBattles;
+        // Check if rating changed (indicating a new battle completed)
+        const ratingChanged = currentStats.rating !== previousStats.rating;
         
-        if (!battlesChanged) {
-            return; // No new battles
+        if (!ratingChanged) {
+            return; // No rating change
         }
 
-        console.log('🎮 New battle detected!');
+        console.log('🎮 Rating change detected!');
 
-        // Determine battle result first
-        const winsChanged = currentStats.wins > previousStats.wins;
-        const lossesChanged = currentStats.losses > previousStats.losses;
+        // Determine battle result based on rating change
+        const ratingChange = currentStats.rating - previousStats.rating;
         
         let battleResult = 'Unknown';
         let color = 0xffff00; // Yellow for unknown
         let emoji = '❓';
 
-        if (winsChanged) {
+        if (ratingChange > 0) {
             battleResult = 'Victory';
             color = 0x00ff00; // Green
             emoji = '🎉';
-        } else if (lossesChanged) {
+        } else if (ratingChange < 0) {
             battleResult = 'Defeat';
             color = 0xff0000; // Red
             emoji = '💀';
+        } else {
+            // This shouldn't happen since we already checked ratingChanged
+            return;
         }
 
         // Start session if not active (before tracking the battle)
@@ -452,8 +454,7 @@ class WarThunderSquadronBot {
         // Update session battle count
         this.sessionStats.totalBattles++;
 
-        // Calculate rating change
-        const ratingChange = currentStats.rating - previousStats.rating;
+        // Rating change was already calculated above
         const ratingChangeText = ratingChange > 0 ? `+${ratingChange}` : `${ratingChange}`;
 
         // Store battle details in session
