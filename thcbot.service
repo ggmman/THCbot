@@ -1,0 +1,29 @@
+[Unit]
+Description=War Thunder Squadron Bot
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+User=pi
+Group=pi
+WorkingDirectory=/opt/thcbot
+Environment=NODE_ENV=production
+Environment=PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+Environment=PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ExecStart=/usr/bin/node bot.js
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=thcbot
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/thcbot
+
+[Install]
+WantedBy=multi-user.target
