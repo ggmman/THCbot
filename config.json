@@ -1,6 +1,6 @@
 {
-  "squadronName": "Try Hard Coalition",
-  "channelId": "${DISCORD_CHANNEL_ID}",
+  "squadronName": "your full squadron name",
+  "channelId": "your channel id",
   "checkIntervalMinutes": 2,
   "retryAttempts": 3,
   "requestTimeoutMs": 10000
