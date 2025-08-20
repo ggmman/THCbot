@@ -4,12 +4,15 @@ A Discord bot that monitors War Thunder squadron battle results and sends real-t
 
 ## Features
 
-- 🎯 **Real-time Monitoring**: Checks squadron stats every 2-3 minutes
-- 🎮 **Battle Detection**: Automatically detects when new battles complete
+- 🎯 **Real-time Monitoring**: Uses War Thunder API for frequent updates and accurate data
+- 🎮 **Battle Detection**: Automatically detects single and multiple battles between checks
 - 📊 **Rich Notifications**: Beautiful Discord embeds with color-coded results
 - 🏆 **Rating Tracking**: Shows rating changes (+/- points) after each battle
 - ⚔️ **Win/Loss Records**: Tracks and displays updated W-L statistics
-- 🔄 **Error Handling**: Robust retry logic and graceful error recovery
+- 🎮 **Gaming Sessions**: Automatic session tracking with detailed statistics
+- 💬 **Slash Commands**: Interactive commands for real-time squadron information
+- 🏅 **Leaderboard Integration**: Shows current rank and nearby competitors
+- 🔄 **Multi-Battle Detection**: Captures multiple battles that happen between updates
 - ⚙️ **Configurable**: Easy to customize for different squadrons and settings
 
 ## Prerequisites
@@ -67,12 +70,13 @@ In the Discord Developer Portal, under "Bot":
 - Enable "Send Messages" permission
 - Enable "Embed Links" permission
 - Enable "Read Message History" permission
+- Enable "Use Slash Commands" permission
 
 ### 3. Invite Bot to Server
 
 1. Go to "OAuth2" → "URL Generator"
-2. Select "bot" scope
-3. Select permissions: "Send Messages", "Embed Links", "Read Message History"
+2. Select "bot" and "applications.commands" scopes
+3. Select permissions: "Send Messages", "Embed Links", "Read Message History", "Use Slash Commands"
 4. Copy the generated URL and open it in your browser
 5. Select your Discord server and authorize the bot
 
@@ -172,6 +176,136 @@ Try Hard Coalition - Defeat
 🕐 Timestamp: Today at 4:12 PM
 ```
 
+## Slash Commands
+
+The bot provides two powerful commands for real-time squadron information:
+
+### `/rank` - Squadron Leaderboard Position
+
+Shows your squadron's current rank and nearby competitors:
+
+```
+🏆 Squadron Leaderboard Rank
+Try Hard Coalition
+
+📍 Current Rank: #22
+⭐ Squadron Rating: 38,112
+
+⬆️ Squadron Above
+Black_Wolves_Germany (#21)
+38,163 points (+51 needed)
+
+⬇️ Squadron Below  
+Valiant Crew of Misfits (#23)
+37,980 points (132 ahead)
+```
+
+### `/top` - Top Squadron Players
+
+Shows the top 20 players in your squadron with their ratings:
+
+```
+👥 Top Squadron Players
+Try Hard Coalition - Top 20 Players
+
+🏆 Player Rankings
+🥇 PlayerOne - 15,432
+🥈 TopAce - 14,876  
+🥉 SkyDominator - 14,321
+4. WingCommander - 13,987
+5. AirSuperiority - 13,654
+6. FighterPilot - 13,298
+...
+20. Mustang - 8,654
+```
+
+### Command Usage
+
+- Type `/rank` for leaderboard position information (uses fast API)
+- Type `/top` for squadron player rankings (uses web scraping)
+- Commands respond privately (only you can see the result)
+- Work from any channel in your Discord server
+- `/top` may take longer due to Cloudflare protection bypass
+
+## Gaming Sessions
+
+The bot automatically tracks gaming sessions:
+
+### Session Detection
+- **Starts**: When first battle is detected after inactivity
+- **Continues**: As long as battles occur within 30 minutes
+- **Ends**: After 30 minutes of no battle activity
+
+### Session Features
+- **Real-time tracking**: Win/loss count, rating changes, win rate
+- **Battle history**: Individual battle results within the session
+- **Multiple battle support**: Handles multiple battles between updates
+- **Session summary**: Comprehensive end-of-session report
+
+### Session Notifications
+
+**Session Start:**
+```
+🎮 Gaming Session Started!
+Try Hard Coalition is now in a gaming session
+
+🏆 Starting Rating: 37,825
+🕐 Session Started: Today at 3:30 PM
+```
+
+**Session End:**
+```
+🏁 Gaming Session Ended
+Try Hard Coalition session summary
+
+⏱️ Session Duration: 67 minutes
+🎮 Battles Played: 5
+📊 Session Record: 4W - 1L
+📈 Rating Change: +287
+🎯 Win Rate: 80%
+🕐 Session Ended: Today at 4:37 PM
+
+📋 Battle History
+🎉 Battle 1: Victory (+95)
+🎉 Battle 2: Victory (+112)  
+💀 Battle 3: Defeat (-78)
+🎉 Battles 4-5: 2W-0L (+158)
+```
+
+## Multi-Battle Detection
+
+The bot intelligently handles multiple battles that occur between API checks:
+
+### How It Works
+- **Monitors all stats**: Rating, wins, losses independently
+- **Detects multiple changes**: If wins increase by 2, reports 2 victories
+- **Combined notifications**: Shows total battles and combined rating change
+- **Accurate tracking**: Never misses battles regardless of update timing
+
+### Example Scenarios
+
+**Multiple Wins:**
+```
+🎉 Multiple Battles Completed
+Try Hard Coalition - 2 Victories, 0 Defeats
+
+⚔️ Battles: 2 battles
+📊 Results: 2W - 0L
+📈 Total Rating Change: +234
+🏆 Current Rating: 38,346
+```
+
+**Mixed Results:**
+```
+⚖️ Multiple Battles Completed  
+Try Hard Coalition - 1 Victory, 1 Defeat
+
+⚔️ Battles: 2 battles
+📊 Results: 1W - 1L
+📈 Total Rating Change: +27
+🏆 Current Rating: 38,139
+```
+
 ## Error Handling
 
 The bot includes comprehensive error handling:
@@ -189,18 +323,18 @@ The bot includes comprehensive error handling:
 - Verify `config.json` syntax is valid
 - Ensure Node.js version is 16.0.0 or higher
 
-### Cloudflare Protection (403 Errors)
-**This is the most common issue** - War Thunder uses Cloudflare protection that blocks automated requests:
+### API Connection Issues
+**Rare but possible** - War Thunder API might be temporarily unavailable:
 
-- ✅ **Expected behavior**: The bot will show `Request failed with status code 403`
-- 🔄 **Bot continues running**: It will keep trying every 5 minutes
-- 💡 **Intermittent success**: Sometimes requests will work through Cloudflare
-- ⚠️ **Status notification**: Bot sends a Discord message explaining the situation
+- ✅ **Normal behavior**: Bot uses War Thunder's official leaderboard API
+- 🔄 **Automatic retry**: Built-in retry logic with exponential backoff
+- 💡 **High reliability**: API is much more stable than web scraping
+- ⚠️ **Status notification**: Bot sends Discord message if API is persistently unavailable
 
 **Solutions:**
-1. **Wait and let it run** - Cloudflare protection may allow some requests through
-2. **Increase check interval** - Change `checkIntervalMinutes` to 10+ in `config.json`
-3. **Use manual updates** - Implement the manual data input feature (see below)
+1. **API issues are temporary** - The bot will automatically reconnect
+2. **Check War Thunder status** - Verify the game servers are operational
+3. **Restart if needed** - Restart the bot if issues persist for hours
 
 ### No Notifications
 - Verify channel ID is correct in `config.json`
@@ -220,15 +354,7 @@ The bot includes comprehensive error handling:
 - Ensure adequate memory and CPU resources
 - Consider using PM2 for automatic restarts
 
-## Manual Data Input (Cloudflare Workaround)
 
-If Cloudflare protection prevents automatic scraping, you can manually trigger battle result notifications:
-
-1. **Create a manual trigger** by sending a message in the monitored channel
-2. **The bot monitors for specific commands** (this feature can be added)
-3. **Input format**: `!battle win 1250 15 3` (result, new rating, wins, losses)
-
-*Note: This manual feature would require additional development to implement Discord slash commands.*
 
 ## Development
 
@@ -273,6 +399,21 @@ For issues or questions:
 4. Verify Discord bot permissions
 
 ## Changelog
+
+### v2.1.0
+- **👥 New `/top` Command**: Shows top 20 squadron players with ratings
+- **🌐 Hybrid Data Sources**: API for leaderboards, web scraping for player data
+- **🛡️ Advanced Cloudflare Bypass**: Multiple scraping strategies for player data
+- **🎨 Enhanced Player Display**: Medal emojis and formatted ratings
+
+### v2.0.0
+- **🎯 API Integration**: Switched from web scraping to War Thunder's official leaderboard API
+- **🔄 Multi-Battle Detection**: Detects and reports multiple battles between updates
+- **💬 Slash Commands**: Added `/rank` interactive command
+- **🎮 Gaming Sessions**: Automatic session tracking with detailed statistics
+- **🏅 Leaderboard Integration**: Shows current rank and nearby competitors
+- **⚡ Enhanced Reliability**: Much more stable and accurate than web scraping
+- **📊 Improved Notifications**: Better battle result formatting and information
 
 ### v1.0.0
 - Initial release
