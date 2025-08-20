@@ -1130,7 +1130,6 @@ class WarThunderSquadronBot {
                                 // Player name validation
                                 const isValidPlayerName = 
                                     nameText && nameText.length >= 2 && nameText.length <= 30 &&
-                                    /[A-Za-z]/.test(nameText) &&
                                     /^[A-Za-z0-9_\-\[\]\.@#$%&*+=<>?!\s\u00C0-\u017F\u0400-\u04FF\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\u0100-\u017F]+$/.test(nameText) &&
                                     !nameText.match(/^(rating|position|name|player|rank|recommended|minimum|commander|officer|sergeant|private|deputy|admin|mod|header|footer|table|row|cell|div|span|button|link|menu|nav|activity|squadron|intel|core|ryzen|flight|time|graphics|card|processor|cpu|gpu|memory|ram|nvidia|amd|pro|iris|radeon|geforce|gtx|rtx|youtube|facebook|twitter|age|tier|level|lvl|directx|ubuntu|linux|windows|mac|os|big|sur|dual|entry|date|nickname|must|be|older|than|not|more|geforce|dual-core|requirements|system|spec|specification|num\.|personal|clan)$/i) &&
                                     !nameText.match(/^(squadron rating|flight time|intel iris|intel core|core i[35579]|ryzen [357]|graphics card|nvidia geforce|radeon rx|geforce gtx|must be|not older than|more than|date of entry|the nickname|dual-core|mac os|big sur|epic games|steam|origin|battle net|war thunder)$/i) &&
@@ -1170,7 +1169,7 @@ class WarThunderSquadronBot {
                             const text = div.textContent.trim();
                             
                             // Look for name-rating patterns in div content
-                            const nameRatingPattern = text.match(/^([A-Za-z][A-Za-z0-9_\-\[\]\.@#$%&*+=<>?!\s]{1,25})\s*\n?\s*(\d{2,6})$/);
+                            const nameRatingPattern = text.match(/^([A-Za-z0-9_\-\[\]\.@#$%&*+=<>?!\s\u00C0-\u017F\u0400-\u04FF\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\u0100-\u017F][A-Za-z0-9_\-\[\]\.@#$%&*+=<>?!\s\u00C0-\u017F\u0400-\u04FF\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\u0100-\u017F]{1,25})\s*\n?\s*(\d{2,6})$/);
                             if (nameRatingPattern) {
                                 const name = nameRatingPattern[1].trim();
                                 const rating = parseInt(nameRatingPattern[2]);
@@ -1181,8 +1180,7 @@ class WarThunderSquadronBot {
                                     !name.toLowerCase().includes('rating') &&
                                     !name.toLowerCase().includes('num.') &&
                                     !name.toLowerCase().includes('activity') &&
-                                    !name.toLowerCase().includes('role') &&
-                                    /[A-Za-z]/.test(name);
+                                    !name.toLowerCase().includes('role');
                                 
                                 if (isValidPlayerName) {
                                     const exists = players.some(p => p.name.toLowerCase() === name.toLowerCase());
