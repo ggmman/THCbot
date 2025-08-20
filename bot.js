@@ -76,9 +76,9 @@ class WarThunderSquadronBot {
             new SlashCommandBuilder()
                 .setName('top')
                 .setDescription('Show top 20 players in the squadron'),
-            new SlashCommandBuilder()
-                .setName('players')
-                .setDescription('Show all players in the squadron'),
+            // new SlashCommandBuilder()
+            //     .setName('players')
+            //     .setDescription('Show all players in the squadron'),
             new SlashCommandBuilder()
                 .setName('low')
                 .setDescription('Show all players under 1300 points')
@@ -213,9 +213,9 @@ class WarThunderSquadronBot {
             case 'top':
                 await this.handleTopCommand(interaction);
                 break;
-            case 'players':
-                await this.handlePlayersCommand(interaction);
-                break;
+            // case 'players':
+            //     await this.handlePlayersCommand(interaction);
+            //     break;
             case 'low':
                 await this.handleLowCommand(interaction);
                 break;
@@ -596,6 +596,8 @@ class WarThunderSquadronBot {
                 // We'll search through multiple pages to find the squadron
                 const maxPages = 10; // Adjust based on expected squadron ranking
                 let squadronFound = null;
+                let foundPage = null;
+                let foundIndex = null;
                 
                 for (let page = 1; page <= maxPages; page++) {
                     // First, try to detect current era by checking a sample page
@@ -629,14 +631,17 @@ class WarThunderSquadronBot {
                     }
                     
                     // Search for our squadron in this page
-                    squadronFound = apiResponse.data.find(squadron => 
+                    const foundSquadronIndex = apiResponse.data.findIndex(squadron => 
                         squadron.name && squadron.name.toLowerCase() === this.config.squadronName.toLowerCase()
                     );
                     
-                    if (squadronFound) {
-                        console.log(`✅ Found squadron ${this.config.squadronName} on page ${page}`);
-                                break;
-                            }
+                    if (foundSquadronIndex !== -1) {
+                        squadronFound = apiResponse.data[foundSquadronIndex];
+                        foundPage = page;
+                        foundIndex = foundSquadronIndex;
+                        console.log(`✅ Found squadron ${this.config.squadronName} on page ${page}, index ${foundSquadronIndex}`);
+                        break;
+                    }
                         }
                         
                 if (!squadronFound) {
@@ -658,6 +663,11 @@ class WarThunderSquadronBot {
                 const battles = astat.battles_hist || 0;
                 const losses = battles - wins;
                 
+                // Calculate accurate position (same method as rank command)
+                const basePosition = (foundPage - 1) * 20; // 20 squadrons per page
+                const actualPosition = basePosition + foundIndex + 1;
+                console.log(`📊 Position calculation: Page ${foundPage}, Index ${foundIndex} → Position ${actualPosition}`);
+                
                     return {
                     rating: currentEraInfo.value,
                     wins: wins,
@@ -665,7 +675,7 @@ class WarThunderSquadronBot {
                     totalBattles: battles,
                     timestamp: new Date(),
                     era: currentEraInfo.era,
-                    position: squadronFound.pos || 0,
+                    position: actualPosition,
                     squadronId: squadronFound._id
                 };
 
