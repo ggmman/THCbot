@@ -13,6 +13,7 @@ A Discord bot that monitors War Thunder squadron battle results and sends real-t
 - 💬 **Slash Commands**: Interactive commands for real-time squadron information
 - 🏅 **Leaderboard Integration**: Shows current rank and nearby competitors
 - 🔄 **Multi-Battle Detection**: Captures multiple battles that happen between updates
+- 🎤 **Voice Queue Tracking**: Monitor voice channel join times for game queues
 - ⚙️ **Configurable**: Easy to customize for different squadrons and settings
 
 ## Prerequisites
@@ -95,6 +96,7 @@ In the Discord Developer Portal, under "Bot":
 |--------|-------------|---------|
 | `squadronName` | War Thunder squadron name (as it appears in the URL) | "Try Hard Coalition" |
 | `channelId` | Discord channel ID for notifications | Required |
+| `voiceChannelId` | Discord voice channel ID for queue monitoring | Optional |
 | `checkIntervalMinutes` | How often to check for updates (minutes) | 3 |
 | `retryAttempts` | Number of retry attempts for failed requests | 3 |
 | `requestTimeoutMs` | HTTP request timeout in milliseconds | 10000 |
@@ -178,7 +180,7 @@ Try Hard Coalition - Defeat
 
 ## Slash Commands
 
-The bot provides two powerful commands for real-time squadron information:
+The bot provides several powerful commands for real-time squadron information:
 
 ### `/rank` - Squadron Leaderboard Position
 
@@ -219,10 +221,50 @@ Try Hard Coalition - Top 20 Players
 20. Mustang - 8,654
 ```
 
+### `/queue` - Voice Channel Queue
+
+Shows who's currently in the monitored voice channel and their wait time:
+
+```
+🎮 Voice Channel Queue
+
+🥇 1. PlayerOne - 12m 34s
+🥈 2. PlayerTwo - 8m 12s  
+🥉 3. PlayerThree - 5m 45s
+📍 4. PlayerFour - 2m 10s
+
+Total players in queue: 4
+```
+
+### `/sqbbr` - Squadron Battle BR Schedule
+
+Shows the current week's BR and the full season schedule:
+
+```
+🎯 Squadron Battle BR Schedule
+
+🔥 Current BR: 12.0 (07.07 - 13.07)
+
+Full Schedule:
+   1st week BR 14.0 (01.07 - 06.07)
+►  2nd week BR 12.0 (07.07 - 13.07)
+   3rd week BR 10.7 (14.07 - 20.07)
+   4th week BR 9.7 (21.07 - 27.07)
+   5th week BR 8.7 (28.07 - 03.08)
+   6th week BR 7.3 (04.08 - 10.08)
+   7th week BR 6.3 (11.08 - 17.08)
+   8th week BR 5.7 (18.08 - 24.08)
+   Until the end of season BR 4.7 (25.08 - 31.08)
+
+Dates in DD.MM format
+```
+
 ### Command Usage
 
 - Type `/rank` for leaderboard position information (uses fast API)
 - Type `/top` for squadron player rankings (uses web scraping)
+- Type `/queue` for voice channel queue status (requires voiceChannelId configuration)
+- Type `/sqbbr` for squadron battle BR schedule and current week's BR
 - Commands respond privately (only you can see the result)
 - Work from any channel in your Discord server
 - `/top` may take longer due to Cloudflare protection bypass

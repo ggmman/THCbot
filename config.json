@@ -1,6 +1,7 @@
 {
   "squadronName": "Try Hard Coalition",
-  "channelId": "1405374174855168070",
+  "channelId": "1405308409917603981",
+  "voiceChannelId": "1024770011639861352",
   "checkIntervalMinutes": 2,
   "retryAttempts": 3,
   "requestTimeoutMs": 10000,

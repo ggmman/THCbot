@@ -9,7 +9,8 @@ class WarThunderSquadronBot {
         this.client = new Client({
             intents: [
                 GatewayIntentBits.Guilds,
-                GatewayIntentBits.GuildMessages
+                GatewayIntentBits.GuildMessages,
+                GatewayIntentBits.GuildVoiceStates
             ]
         });
 
@@ -56,6 +57,10 @@ class WarThunderSquadronBot {
         this.cachedPlayers = [];
         this.lastPlayerDataUpdate = null;
         this.playerDataInterval = null;
+        
+        // Voice channel queue tracking
+        this.voiceQueue = new Map(); // Map<userId, { username: string, joinTime: Date }>
+        this.voiceQueueHistory = new Map(); // Track join/leave history for better UX
     }
 
     loadConfig() {
@@ -81,7 +86,13 @@ class WarThunderSquadronBot {
             //     .setDescription('Show all players in the squadron'),
             new SlashCommandBuilder()
                 .setName('low')
-                .setDescription('Show all players under 1300 points')
+                .setDescription('Show all players under 1300 points'),
+            new SlashCommandBuilder()
+                .setName('queue')
+                .setDescription('Show the voice channel queue ordered by join time'),
+            new SlashCommandBuilder()
+                .setName('sqbbr')
+                .setDescription('Show the current squadron battle BR schedule')
         ];
 
         return commands.map(command => command.toJSON());
@@ -123,6 +134,11 @@ class WarThunderSquadronBot {
                     await interaction.reply({ content: errorMessage, ephemeral: true });
                 }
             }
+        });
+
+        // Handle voice state updates for queue tracking
+        this.client.on('voiceStateUpdate', (oldState, newState) => {
+            this.handleVoiceStateUpdate(oldState, newState);
         });
 
         // Graceful shutdown
@@ -218,6 +234,12 @@ class WarThunderSquadronBot {
             //     break;
             case 'low':
                 await this.handleLowCommand(interaction);
+                break;
+            case 'queue':
+                await this.handleQueueCommand(interaction);
+                break;
+            case 'sqbbr':
+                await this.handleSqbbrCommand(interaction);
                 break;
             default:
                 await interaction.reply({ content: 'Unknown command!', ephemeral: true });
@@ -350,6 +372,196 @@ class WarThunderSquadronBot {
             await interaction.editReply({
                 content: '❌ An error occurred while getting low-rating player data.',
             });
+        }
+    }
+
+    async handleQueueCommand(interaction) {
+        await interaction.deferReply();
+
+        try {
+            if (!this.config.voiceChannelId || this.config.voiceChannelId === "YOUR_VOICE_CHANNEL_ID_HERE") {
+                await interaction.editReply({
+                    content: '❌ Voice channel monitoring is not configured. Please set a valid voiceChannelId in config.json.',
+                });
+                return;
+            }
+
+            const queueList = Array.from(this.voiceQueue.entries())
+                .sort((a, b) => a[1].joinTime - b[1].joinTime); // Sort by join time (earliest first)
+
+            if (queueList.length === 0) {
+                await interaction.editReply({
+                    content: '📭 The voice channel queue is currently empty.',
+                });
+                return;
+            }
+
+            const embed = this.createQueueEmbed(queueList);
+            await interaction.editReply({ embeds: [embed] });
+
+        } catch (error) {
+            console.error('Error in queue command:', error);
+            await interaction.editReply({
+                content: '❌ An error occurred while getting the voice channel queue.',
+            });
+        }
+    }
+
+    async handleSqbbrCommand(interaction) {
+        await interaction.deferReply();
+
+        try {
+            const currentBR = this.getCurrentSquadronBR();
+            const schedule = this.getSquadronBRSchedule();
+            
+            const embed = new EmbedBuilder()
+                .setTitle('🎯 Squadron Battle BR Schedule')
+                .setColor(0x00AE86)
+                .setTimestamp();
+
+            let description = '';
+            
+            if (currentBR) {
+                description += `**🔥 Current BR: ${currentBR.br}** (${currentBR.period})\n\n`;
+            } else {
+                description += `**📅 Season not currently active**\n\n`;
+            }
+            
+            description += '**Full Schedule:**\n';
+            description += schedule.map(week => {
+                const prefix = currentBR && week.week === currentBR.week ? '► ' : '   ';
+                return `${prefix}${week.week} BR ${week.br} (${week.period})`;
+            }).join('\n');
+
+            embed.setDescription(description);
+            embed.setFooter({ text: 'Dates in DD.MM format' });
+            
+            await interaction.editReply({ embeds: [embed] });
+
+        } catch (error) {
+            console.error('Error in sqbbr command:', error);
+            await interaction.editReply({
+                content: '❌ An error occurred while getting the BR schedule.',
+            });
+        }
+    }
+
+    getCurrentSquadronBR() {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        
+        const schedule = [
+            { week: '1st week', br: '14.0', start: new Date(currentYear, 6, 1), end: new Date(currentYear, 6, 6) }, // July 1-6
+            { week: '2nd week', br: '12.0', start: new Date(currentYear, 6, 7), end: new Date(currentYear, 6, 13) }, // July 7-13
+            { week: '3rd week', br: '10.7', start: new Date(currentYear, 6, 14), end: new Date(currentYear, 6, 20) }, // July 14-20
+            { week: '4th week', br: '9.7', start: new Date(currentYear, 6, 21), end: new Date(currentYear, 6, 27) }, // July 21-27
+            { week: '5th week', br: '8.7', start: new Date(currentYear, 6, 28), end: new Date(currentYear, 7, 3) }, // July 28 - Aug 3
+            { week: '6th week', br: '7.3', start: new Date(currentYear, 7, 4), end: new Date(currentYear, 7, 10) }, // Aug 4-10
+            { week: '7th week', br: '6.3', start: new Date(currentYear, 7, 11), end: new Date(currentYear, 7, 17) }, // Aug 11-17
+            { week: '8th week', br: '5.7', start: new Date(currentYear, 7, 18), end: new Date(currentYear, 7, 24) }, // Aug 18-24
+            { week: 'Until the end of season', br: '4.7', start: new Date(currentYear, 7, 25), end: new Date(currentYear, 7, 31) } // Aug 25-31
+        ];
+
+        for (const period of schedule) {
+            if (now >= period.start && now <= period.end) {
+                return {
+                    week: period.week,
+                    br: period.br,
+                    period: this.formatDateRange(period.start, period.end)
+                };
+            }
+        }
+
+        return null; // Not in season
+    }
+
+    getSquadronBRSchedule() {
+        return [
+            { week: '1st week', br: '14.0', period: '01.07 - 06.07' },
+            { week: '2nd week', br: '12.0', period: '07.07 - 13.07' },
+            { week: '3rd week', br: '10.7', period: '14.07 - 20.07' },
+            { week: '4th week', br: '9.7', period: '21.07 - 27.07' },
+            { week: '5th week', br: '8.7', period: '28.07 - 03.08' },
+            { week: '6th week', br: '7.3', period: '04.08 - 10.08' },
+            { week: '7th week', br: '6.3', period: '11.08 - 17.08' },
+            { week: '8th week', br: '5.7', period: '18.08 - 24.08' },
+            { week: 'Until the end of season', br: '4.7', period: '25.08 - 31.08' }
+        ];
+    }
+
+    formatDateRange(startDate, endDate) {
+        const formatDate = (date) => {
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            return `${day}.${month}`;
+        };
+        return `${formatDate(startDate)} - ${formatDate(endDate)}`;
+    }
+
+    handleVoiceStateUpdate(oldState, newState) {
+        const targetChannelId = this.config.voiceChannelId;
+        
+        if (!targetChannelId || targetChannelId === "YOUR_VOICE_CHANNEL_ID_HERE") {
+            return; // Voice channel monitoring not configured
+        }
+
+        const userId = newState.id;
+        const username = newState.member?.displayName || newState.member?.user.username || 'Unknown User';
+
+        // User joined the target voice channel
+        if (newState.channelId === targetChannelId && oldState.channelId !== targetChannelId) {
+            this.voiceQueue.set(userId, {
+                username: username,
+                joinTime: new Date()
+            });
+            console.log(`🎤 ${username} joined the voice queue`);
+        }
+        
+        // User left the target voice channel
+        if (oldState.channelId === targetChannelId && newState.channelId !== targetChannelId) {
+            this.voiceQueue.delete(userId);
+            console.log(`🚪 ${username} left the voice queue`);
+        }
+    }
+
+    createQueueEmbed(queueList) {
+        const embed = new EmbedBuilder()
+            .setTitle('🎮 Voice Channel Queue')
+            .setColor(0x00AE86)
+            .setTimestamp();
+
+        if (queueList.length === 0) {
+            embed.setDescription('The queue is currently empty.');
+            return embed;
+        }
+
+        let description = `**Queue Position | Player | Wait Time**\n\n`;
+        
+        queueList.forEach(([userId, data], index) => {
+            const waitTime = this.formatWaitTime(Date.now() - data.joinTime.getTime());
+            const position = index + 1;
+            const medal = position === 1 ? '🥇' : position === 2 ? '🥈' : position === 3 ? '🥉' : '📍';
+            
+            description += `${medal} **${position}.** ${data.username} - *${waitTime}*\n`;
+        });
+
+        embed.setDescription(description);
+        embed.setFooter({ text: `Total players in queue: ${queueList.length}` });
+
+        return embed;
+    }
+
+    formatWaitTime(milliseconds) {
+        const seconds = Math.floor(milliseconds / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+
+        if (hours > 0) {
+            return `${hours}h ${minutes % 60}m`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${seconds % 60}s`;
+        } else {
+            return `${seconds}s`;
         }
     }
 
