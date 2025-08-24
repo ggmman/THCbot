@@ -223,17 +223,19 @@ Try Hard Coalition - Top 20 Players
 
 ### `/queue` - Voice Channel Queue
 
-Shows who's currently in the monitored voice channel and their wait time:
+Shows who's currently in the monitored voice channel with their points and wait time:
 
 ```
 🎮 Voice Channel Queue
 
-🥇 1. PlayerOne - 12m 34s
-🥈 2. PlayerTwo - 8m 12s  
-🥉 3. PlayerThree - 5m 45s
-📍 4. PlayerFour - 2m 10s
+Queue Position | Player | Points | Wait Time
 
-Total players in queue: 4
+🥇 1. PlayerOne - 14,521 pts - 12m 34s
+🥈 2. PlayerTwo - 13,234 pts - 8m 12s  
+🥉 3. PlayerThree - 12,890 pts - 5m 45s
+📍 4. PlayerFour - Unknown pts - 2m 10s
+
+Total players in queue: 4 | Points found for: 3/4
 ```
 
 ### `/sqbbr` - Squadron Battle BR Schedule

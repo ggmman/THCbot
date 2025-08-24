@@ -396,7 +396,7 @@ class WarThunderSquadronBot {
                 return;
             }
 
-            const embed = this.createQueueEmbed(queueList);
+            const embed = this.createQueueEmbed(queueList, this.cachedPlayers);
             await interaction.editReply({ embeds: [embed] });
 
         } catch (error) {
@@ -524,7 +524,7 @@ class WarThunderSquadronBot {
         }
     }
 
-    createQueueEmbed(queueList) {
+    createQueueEmbed(queueList, cachedPlayers = []) {
         const embed = new EmbedBuilder()
             .setTitle('🎮 Voice Channel Queue')
             .setColor(0x00AE86)
@@ -535,20 +535,79 @@ class WarThunderSquadronBot {
             return embed;
         }
 
-        let description = `**Queue Position | Player | Wait Time**\n\n`;
+        let description = `**Queue Position | Player | Points | Wait Time**\n\n`;
         
         queueList.forEach(([userId, data], index) => {
             const waitTime = this.formatWaitTime(Date.now() - data.joinTime.getTime());
             const position = index + 1;
             const medal = position === 1 ? '🥇' : position === 2 ? '🥈' : position === 3 ? '🥉' : '📍';
             
-            description += `${medal} **${position}.** ${data.username} - *${waitTime}*\n`;
+            // Try to find player rating from cached data
+            const playerData = this.findPlayerByUsername(data.username, cachedPlayers);
+            const pointsText = playerData ? `${playerData.rating.toLocaleString()}` : 'Unknown';
+            
+            description += `${medal} **${position}.** ${data.username} - ${pointsText} pts - *${waitTime}*\n`;
         });
 
         embed.setDescription(description);
-        embed.setFooter({ text: `Total players in queue: ${queueList.length}` });
+        
+        const foundPlayers = queueList.filter(([userId, data]) => 
+            this.findPlayerByUsername(data.username, cachedPlayers) !== null
+        ).length;
+        
+        embed.setFooter({ 
+            text: `Total players in queue: ${queueList.length} | Points found for: ${foundPlayers}/${queueList.length}` 
+        });
 
         return embed;
+    }
+
+    findPlayerByUsername(discordUsername, cachedPlayers) {
+        if (!cachedPlayers || cachedPlayers.length === 0) {
+            return null;
+        }
+
+        // Clean and normalize the Discord username for matching
+        const cleanDiscordName = discordUsername.toLowerCase()
+            .replace(/[^a-z0-9_\-]/g, '') // Remove special chars except underscore and dash
+            .trim();
+
+        // Try exact match first
+        let match = cachedPlayers.find(player => 
+            player.name.toLowerCase().replace(/[^a-z0-9_\-]/g, '') === cleanDiscordName
+        );
+
+        if (match) return match;
+
+        // Try partial matches - Discord name contains in-game name or vice versa
+        match = cachedPlayers.find(player => {
+            const cleanGameName = player.name.toLowerCase().replace(/[^a-z0-9_\-]/g, '');
+            return cleanDiscordName.includes(cleanGameName) || cleanGameName.includes(cleanDiscordName);
+        });
+
+        if (match) return match;
+
+        // Try fuzzy match - allow for small differences
+        match = cachedPlayers.find(player => {
+            const cleanGameName = player.name.toLowerCase().replace(/[^a-z0-9_\-]/g, '');
+            return this.calculateSimilarity(cleanDiscordName, cleanGameName) > 0.8;
+        });
+
+        return match || null;
+    }
+
+    calculateSimilarity(str1, str2) {
+        if (str1.length === 0 || str2.length === 0) return 0;
+        if (str1 === str2) return 1;
+
+        // Simple similarity calculation based on common characters
+        const longer = str1.length > str2.length ? str1 : str2;
+        const shorter = str1.length > str2.length ? str2 : str1;
+        
+        if (longer.length === 0) return 1;
+        
+        const matches = shorter.split('').filter(char => longer.includes(char)).length;
+        return matches / longer.length;
     }
 
     formatWaitTime(milliseconds) {
