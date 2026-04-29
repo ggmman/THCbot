@@ -61,6 +61,10 @@ class WarThunderSquadronBot {
         // Voice channel queue tracking
         this.voiceQueue = new Map(); // Map<userId, { username: string, joinTime: Date }>
         this.voiceQueueHistory = new Map(); // Track join/leave history for better UX
+
+        // SQB schedule cache
+        this.cachedSqbSchedule = null;
+        this.sqbScheduleLastFetched = null;
     }
 
     loadConfig() {
@@ -411,31 +415,32 @@ class WarThunderSquadronBot {
         await interaction.deferReply();
 
         try {
-            const currentBR = this.getCurrentSquadronBR();
-            const schedule = this.getSquadronBRSchedule();
-            
+            const schedule = await this.fetchSqbSchedule();
+            const now = new Date();
+            const currentEntry = schedule.find(w => now >= w.start && now <= w.end) || null;
+
             const embed = new EmbedBuilder()
                 .setTitle('🎯 Squadron Battle BR Schedule')
                 .setColor(0x00AE86)
                 .setTimestamp();
 
             let description = '';
-            
-            if (currentBR) {
-                description += `**🔥 Current BR: ${currentBR.br}** (${currentBR.period})\n\n`;
+
+            if (currentEntry) {
+                description += `**🔥 Current BR: ${currentEntry.br}** (${currentEntry.period})\n\n`;
             } else {
                 description += `**📅 Season not currently active**\n\n`;
             }
-            
+
             description += '**Full Schedule:**\n';
             description += schedule.map(week => {
-                const prefix = currentBR && week.week === currentBR.week ? '► ' : '   ';
+                const prefix = currentEntry && week.week === currentEntry.week ? '► ' : '   ';
                 return `${prefix}${week.week} BR ${week.br} (${week.period})`;
             }).join('\n');
 
             embed.setDescription(description);
-            embed.setFooter({ text: 'Dates in DD.MM format' });
-            
+            embed.setFooter({ text: `Dates in DD.MM format${this.sqbScheduleLastFetched ? ' • Live from warthunder.com' : ' • Fallback schedule'}` });
+
             await interaction.editReply({ embeds: [embed] });
 
         } catch (error) {
@@ -446,46 +451,83 @@ class WarThunderSquadronBot {
         }
     }
 
-    getCurrentSquadronBR() {
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        
-        const schedule = [
-            { week: '1st week', br: '14.0', start: new Date(currentYear, 6, 1), end: new Date(currentYear, 6, 6) }, // July 1-6
-            { week: '2nd week', br: '12.0', start: new Date(currentYear, 6, 7), end: new Date(currentYear, 6, 13) }, // July 7-13
-            { week: '3rd week', br: '10.7', start: new Date(currentYear, 6, 14), end: new Date(currentYear, 6, 20) }, // July 14-20
-            { week: '4th week', br: '9.7', start: new Date(currentYear, 6, 21), end: new Date(currentYear, 6, 27) }, // July 21-27
-            { week: '5th week', br: '8.7', start: new Date(currentYear, 6, 28), end: new Date(currentYear, 7, 3) }, // July 28 - Aug 3
-            { week: '6th week', br: '7.3', start: new Date(currentYear, 7, 4), end: new Date(currentYear, 7, 10) }, // Aug 4-10
-            { week: '7th week', br: '6.3', start: new Date(currentYear, 7, 11), end: new Date(currentYear, 7, 17) }, // Aug 11-17
-            { week: '8th week', br: '5.7', start: new Date(currentYear, 7, 18), end: new Date(currentYear, 7, 24) }, // Aug 18-24
-            { week: 'Until the end of season', br: '4.7', start: new Date(currentYear, 7, 25), end: new Date(currentYear, 7, 31) } // Aug 25-31
-        ];
+    async fetchSqbSchedule() {
+        const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // refresh once per day
 
-        for (const period of schedule) {
-            if (now >= period.start && now <= period.end) {
-                return {
-                    week: period.week,
-                    br: period.br,
-                    period: this.formatDateRange(period.start, period.end)
-                };
-            }
+        if (this.cachedSqbSchedule && this.sqbScheduleLastFetched &&
+            (Date.now() - this.sqbScheduleLastFetched) < CACHE_TTL_MS) {
+            return this.cachedSqbSchedule;
         }
 
-        return null; // Not in season
+        try {
+            const data = await this.fetchApiData('https://forum.warthunder.com/t/4446.json');
+            const html = data?.post_stream?.posts?.[0]?.cooked || '';
+            const parsed = this.parseSqbScheduleHtml(html);
+
+            if (parsed.length > 0) {
+                this.cachedSqbSchedule = parsed;
+                this.sqbScheduleLastFetched = Date.now();
+                console.log(`✅ SQB schedule fetched from forum (${parsed.length} weeks)`);
+                return parsed;
+            }
+
+            console.warn('⚠️ SQB schedule parse returned 0 entries, using fallback');
+        } catch (error) {
+            console.warn(`⚠️ Could not fetch SQB schedule from forum: ${error.message}`);
+        }
+
+        return this.getSqbFallbackSchedule();
     }
 
-    getSquadronBRSchedule() {
+    parseSqbScheduleHtml(html) {
+        // Strip HTML tags and decode common entities
+        const text = html
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&mdash;|&#x2014;|&#8212;/g, '—')
+            .replace(/&ndash;|&#x2013;|&#8211;/g, '–')
+            .replace(/&nbsp;/g, ' ');
+
+        const schedule = [];
+        const currentYear = new Date().getFullYear();
+        // Matches lines like: "1 week мах BR 14.3 (01.03 — 08.03)" and
+        // "Until the end of season, мах BR 4.7 (27.04 — 30.04)"
+        const pattern = /([^\n(]+?)\s*,?\s*(?:мах|max)\s+BR\s+([\d.]+)\s+\((\d{2}\.\d{2})\s*[—–\-]+\s*(\d{2}\.\d{2})\)/giu;
+
+        let match;
+        while ((match = pattern.exec(text)) !== null) {
+            const label = match[1].trim();
+            const br = match[2];
+            const startStr = match[3];
+            const endStr = match[4];
+
+            const [startDay, startMonth] = startStr.split('.').map(Number);
+            const [endDay, endMonth] = endStr.split('.').map(Number);
+
+            schedule.push({
+                week: label,
+                br,
+                period: `${startStr} - ${endStr}`,
+                start: new Date(currentYear, startMonth - 1, startDay),
+                end: new Date(currentYear, endMonth - 1, endDay, 23, 59, 59)
+            });
+        }
+
+        return schedule;
+    }
+
+    getSqbFallbackSchedule() {
+        const y = new Date().getFullYear();
         return [
-            { week: '1st week', br: '14.0', period: '01.07 - 06.07' },
-            { week: '2nd week', br: '12.0', period: '07.07 - 13.07' },
-            { week: '3rd week', br: '10.7', period: '14.07 - 20.07' },
-            { week: '4th week', br: '9.7', period: '21.07 - 27.07' },
-            { week: '5th week', br: '8.7', period: '28.07 - 03.08' },
-            { week: '6th week', br: '7.3', period: '04.08 - 10.08' },
-            { week: '7th week', br: '6.3', period: '11.08 - 17.08' },
-            { week: '8th week', br: '5.7', period: '18.08 - 24.08' },
-            { week: 'Until the end of season', br: '4.7', period: '25.08 - 31.08' }
+            { week: '1 week', br: '14.3', period: '01.03 - 08.03', start: new Date(y, 2, 1),  end: new Date(y, 2, 8,  23, 59, 59) },
+            { week: '2 week', br: '12.0', period: '09.03 - 15.03', start: new Date(y, 2, 9),  end: new Date(y, 2, 15, 23, 59, 59) },
+            { week: '3 week', br: '10.7', period: '16.03 - 22.03', start: new Date(y, 2, 16), end: new Date(y, 2, 22, 23, 59, 59) },
+            { week: '4 week', br: '9.7',  period: '23.03 - 29.03', start: new Date(y, 2, 23), end: new Date(y, 2, 29, 23, 59, 59) },
+            { week: '5 week', br: '8.7',  period: '30.03 - 05.04', start: new Date(y, 2, 30), end: new Date(y, 3, 5,  23, 59, 59) },
+            { week: '6 week', br: '7.3',  period: '06.04 - 12.04', start: new Date(y, 3, 6),  end: new Date(y, 3, 12, 23, 59, 59) },
+            { week: '7 week', br: '6.3',  period: '13.04 - 19.04', start: new Date(y, 3, 13), end: new Date(y, 3, 19, 23, 59, 59) },
+            { week: '8 week', br: '5.7',  period: '20.04 - 26.04', start: new Date(y, 3, 20), end: new Date(y, 3, 26, 23, 59, 59) },
+            { week: 'Until the end of season', br: '4.7', period: '27.04 - 30.04', start: new Date(y, 3, 27), end: new Date(y, 3, 30, 23, 59, 59) }
         ];
     }
 
