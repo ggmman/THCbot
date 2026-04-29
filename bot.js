@@ -88,7 +88,7 @@ class WarThunderSquadronBot {
                 .setName('low')
                 .setDescription('Show all players under 1300 points'),
             new SlashCommandBuilder()
-                .setName('queue')
+                .setName('waiting')
                 .setDescription('Show the voice channel queue ordered by join time'),
             new SlashCommandBuilder()
                 .setName('sqbbr')
@@ -235,7 +235,7 @@ class WarThunderSquadronBot {
             case 'low':
                 await this.handleLowCommand(interaction);
                 break;
-            case 'queue':
+            case 'waiting':
                 await this.handleQueueCommand(interaction);
                 break;
             case 'sqbbr':
@@ -400,7 +400,7 @@ class WarThunderSquadronBot {
             await interaction.editReply({ embeds: [embed] });
 
         } catch (error) {
-            console.error('Error in queue command:', error);
+            console.error('Error in waiting command:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while getting the voice channel queue.',
             });
